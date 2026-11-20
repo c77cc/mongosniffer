@@ -16,7 +16,6 @@ MongoSniffer 是一个旁路 MongoDB 流量分析工具。它重组 TCP 流，�
   - [PromQL 示例](#promql-示例)
 - [输出](#输出)
 - [耗时语义](#耗时语义)
-- [BSON 指纹语义](#bson-指纹语义)
 - [协议范围](#协议范围)
 - [限制与安全](#限制与安全)
 - [从源码构建](#从源码构建)
@@ -128,7 +127,7 @@ JSON 通过 `dimensions.server_address`、Prometheus 通过 `server` 标识实�
 | `--max-groups COUNT` | 最终报告最多输出的 operation 分组数，按最大完整请求耗时排序；默认 50，0 表示全部。 |
 | `--listen ADDRESS` | 提供 `/healthz`、`/report` 和 `/metrics`，例如 `127.0.0.1:9108`。 |
 | `--report-interval DURATION` | 周期 JSONL 间隔，例如 `1m`；必须同时设置 `--report-file`。 |
-| `--report-file FILE` | 周期 JSONL 文件；以 0600 权限创建，必须同时设置 `--report-interval`。 |
+| `--report-file FILE` | 周期 JSONL 文件；Unix 上限制为 0600 权限，必须同时设置 `--report-interval`。 |
 | `--version` | 输出版本并退出。 |
 | `-h`、`--help` | 显示帮助并退出。 |
 
@@ -391,22 +390,6 @@ and on()
 
 这些值是抓包点观察耗时，包含网络、排队、服务端执行、序列化和传输，不等同于 MongoDB profiler 的纯服务端耗时。
 
-## BSON 指纹语义
-
-- 默认将所有业务 scalar 替换为 `?`，保留字段名、query/update operator、逻辑结构和 aggregation stage 顺序。
-- 在安全上限内完整展示 `$and`/`$or` 条件；同类嵌套逻辑会被扁平化，可交换的条件会排序以保持稳定。
-- 常用操作符显示为 `=`、`!=`、`<`、`<=`、`>`、`>=`、`in` 和 `not in`。
-- 可读摘要省略 `$db`、`batchSize`、`$readPreference` 等传输噪声；需要区分时它们仍保留在内部 canonical 聚合 shape 中。
-- projection 使用 `project(field, ...)` 展示字段名；sort 使用 `sort(field: ?)` 保留有语义的字段顺序。
-- `$in`、`$nin`、`$all` 等纯值数组折叠为稳定 shape，批量大小不会产生新的指纹。
-- 普通非查询 document 数组仍保留首个 shape，并以 `...mixed` 标记混合结构；逻辑查询数组不再使用 `...mixed`。
-- regex pattern、JavaScript、binary、UUID、ObjectId 和认证载荷不会输出原始内容。
-- `lsid`、`txnNumber`、cluster time signature 和安全 token 在进入通用 shape 前删除。
-- `fingerprint_id` 基于实际用于聚合的完整、有界 canonical shape 计算，不只依赖可读摘要。
-- 深度、元素数、sequence shape 数和总指纹长度都有上限；超限使用明确截断标记并增加计数。
-
-`--group-by raw-command` 和 `--log-commands` 保留允许的业务值，但仍强制删除安全字段并截断 binary/超长字符串。这不是逐字节 BSON 还原模式。
-
 ## 协议范围
 
 - 完整解析 MongoDB 5.1+ 普通客户端使用的 OP_MSG 和 OP_COMPRESSED。
@@ -441,15 +424,6 @@ Linux 静态构建：
 ```bash
 CGO_ENABLED=0 go build -trimpath -o bin/mongosniffer ./cmd/mongosniffer
 ```
-
-真实 MongoDB Docker E2E 需要 Docker 和 tcpdump：
-
-```bash
-make e2e
-make e2e-full
-```
-
-基础套件覆盖 standalone、live/PCAP replay、snappy/zlib/zstd、TLS 和服务中断。完整 Linux 套件额外覆盖副本集、事务、change stream、PyMongo、Node.js、Java 和 .NET Driver。环境变量见 [tests/e2e/README.md](tests/e2e/README.md)。
 
 总体方案见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，协议、输出与验收要求见 [docs/SPEC.md](docs/SPEC.md)。
 

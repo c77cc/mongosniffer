@@ -139,7 +139,7 @@ Output:
 Observability:
   --listen ADDRESS             serve /healthz, /report and /metrics
   --report-interval DURATION   periodic JSONL interval
-  --report-file FILE           periodic JSONL output (mode 0600)
+  --report-file FILE           periodic JSONL output (mode 0600 on Unix)
 
 Other:
   --version

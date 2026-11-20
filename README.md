@@ -16,7 +16,6 @@ MongoSniffer is a passive MongoDB traffic analyzer. It reassembles TCP streams, 
   - [PromQL examples](#promql-examples)
 - [Output](#output)
 - [Timing semantics](#timing-semantics)
-- [BSON fingerprint semantics](#bson-fingerprint-semantics)
 - [Protocol scope](#protocol-scope)
 - [Limitations and security](#limitations-and-security)
 - [Build from source](#build-from-source)
@@ -128,7 +127,7 @@ Operations are split by the actual matched endpoint in JSON `dimensions.server_a
 | `--max-groups COUNT` | Maximum operation groups in reports, ordered by maximum completed-request latency; default: 50, 0 means all. |
 | `--listen ADDRESS` | Serve `/healthz`, `/report`, and `/metrics`, for example `127.0.0.1:9108`. |
 | `--report-interval DURATION` | Periodic JSONL interval such as `1m`; requires `--report-file`. |
-| `--report-file FILE` | Periodic JSONL destination, created with mode 0600; requires `--report-interval`. |
+| `--report-file FILE` | Periodic JSONL destination, restricted to mode 0600 on Unix; requires `--report-interval`. |
 | `--version` | Print the version and exit. |
 | `-h`, `--help` | Show command-line help and exit. |
 
@@ -391,22 +390,6 @@ Non-zero `capture.tcp_gap_events`, `truncated_packets`, capture drops, or `proto
 
 These are capture-point observations that include network, queuing, server execution, serialization, and transfer. They are not equivalent to server-only MongoDB profiler duration.
 
-## BSON fingerprint semantics
-
-- Business scalar values become `?`; field names, query/update operators, logical structure, and aggregation-stage order remain.
-- Nested `$and`/`$or` clauses are rendered completely within the safety limits. Nested operators of the same kind are flattened and commutative clauses are sorted for stability.
-- Common operators use readable notation such as `=`, `!=`, `<`, `<=`, `>`, `>=`, `in`, and `not in`.
-- Transport boilerplate such as `$db`, `batchSize`, and `$readPreference` is omitted from the readable summary but remains part of the internal canonical grouping shape when relevant.
-- Projection lists field names as `project(field, ...)`; sort retains ordered fields as `sort(field: ?)`.
-- Pure-value `$in`, `$nin`, `$all`, and similar arrays collapse to stable shapes so batch length does not split fingerprints.
-- Generic non-query document arrays retain the first shape and mark heterogeneous structures with `...mixed`; logical query arrays never use `...mixed`.
-- Regex patterns, JavaScript, binary values, UUIDs, ObjectIds, and authentication payloads do not expose original content.
-- `lsid`, `txnNumber`, cluster-time signatures, and security tokens are removed before general shaping.
-- `fingerprint_id` is calculated from the complete bounded canonical shape used for grouping, not only from the readable summary.
-- Depth, element count, sequence shapes, and total fingerprint length are bounded; explicit truncation markers and counters expose limit hits.
-
-`--group-by raw-command` and `--log-commands` retain permitted business values while still removing mandatory security fields and bounding binary or long-string output. Raw mode is not a byte-for-byte BSON reconstruction.
-
 ## Protocol scope
 
 - Fully decodes OP_MSG and OP_COMPRESSED used by ordinary MongoDB 5.1+ clients.
@@ -441,15 +424,6 @@ Static Linux build:
 ```bash
 CGO_ENABLED=0 go build -trimpath -o bin/mongosniffer ./cmd/mongosniffer
 ```
-
-The real MongoDB Docker E2E suite requires Docker and tcpdump:
-
-```bash
-make e2e
-make e2e-full
-```
-
-The base suite covers standalone MongoDB, live/PCAP replay, snappy/zlib/zstd, TLS, and server interruption. The full Linux suite adds replica sets, transactions, change streams, and PyMongo, Node.js, Java, and .NET drivers. See [tests/e2e/README.md](tests/e2e/README.md) for environment variables.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and [docs/SPEC.md](docs/SPEC.md) for protocol, output, and acceptance requirements.
 

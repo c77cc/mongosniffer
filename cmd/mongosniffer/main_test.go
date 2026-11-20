@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -86,7 +87,8 @@ func TestRuntimeServices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	// Windows does not expose POSIX permission bits through os.Chmod/os.Stat.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("report mode = %o", info.Mode().Perm())
 	}
 	contents, err := os.ReadFile(path)
