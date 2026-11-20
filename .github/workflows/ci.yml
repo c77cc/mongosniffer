@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.26.x
+          cache: true
+      - name: Format
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -coverprofile=coverage.txt ./...
+      - name: Linux static build and smoke tests
+        run: |
+          CGO_ENABLED=0 go build -trimpath -o mongosniffer ./cmd/mongosniffer
+          ./mongosniffer --help
+          ./mongosniffer --version
+
+  e2e:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { version: "6.0", image: "mongo:6.0" }
+          - { version: "7.0", image: "mongo:7.0" }
+          - { version: "8.0", image: "mongo:8.0" }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.26.x
+          cache: true
+      - name: Install capture tools
+        run: sudo apt-get update && sudo apt-get install -y libcap2-bin tcpdump
+      - name: Docker MongoDB E2E
+        env:
+          MONGOSNIFFER_E2E_REQUIRED: "1"
+          MONGOSNIFFER_E2E_SETCAP: "1"
+          MONGOSNIFFER_MONGO_IMAGE: ${{ matrix.image }}
+          MONGOSNIFFER_E2E_ARTIFACTS: .artifacts/e2e/mongo-${{ matrix.version }}
+        run: go test -tags=e2e ./tests/e2e -run TestDockerEndToEnd -v -count=1
+      - name: Upload failed E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-mongo-${{ matrix.version }}
+          path: .artifacts/e2e/mongo-${{ matrix.version }}
+          if-no-files-found: ignore
+
+  e2e-full:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.26.x
+          cache: true
+      - name: Install capture tools
+        run: sudo apt-get update && sudo apt-get install -y libcap2-bin tcpdump
+      - name: Replica set and real client compatibility E2E
+        env:
+          MONGOSNIFFER_E2E_REQUIRED: "1"
+          MONGOSNIFFER_E2E_SETCAP: "1"
+          MONGOSNIFFER_MONGO_IMAGE: mongo:7.0
+          MONGOSNIFFER_E2E_REPLICA: "1"
+          MONGOSNIFFER_E2E_REAL_CLIENTS: "1"
+          MONGOSNIFFER_E2E_ARTIFACTS: .artifacts/e2e/full
+        run: go test -tags=e2e ./tests/e2e -run TestDockerEndToEnd -v -count=1
+      - name: Upload failed E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-full
+          path: .artifacts/e2e/full
+          if-no-files-found: ignore
+
+  package:
+    needs: [test, e2e, e2e-full]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    uses: ./.github/workflows/package.yml
+    with:
+      retention-days: 60

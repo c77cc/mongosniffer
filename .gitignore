@@ -1,0 +1,43 @@
+# MongoSniffer binaries and release artifacts
+/bin/
+/dist/
+/release/
+/mongosniffer
+/mongosniffer.exe
+
+# Capture and runtime output
+*.pcap
+*.pcapng
+*.jsonl
+report*.json
+commands*.log
+/artifacts/
+/tests/e2e/artifacts/
+
+# Go test and profiling output
+coverage.out
+*.coverprofile
+*.prof
+*.trace
+*.test
+
+# E2E client build output
+/tests/e2e/clients/java/target/
+/tests/e2e/clients/dotnet/bin/
+/tests/e2e/clients/dotnet/obj/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local Go workspace
+go.work
+go.work.sum
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store

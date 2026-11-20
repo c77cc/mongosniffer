@@ -1,0 +1,4 @@
+MongoSniffer includes capture, packet-filtering, TCP reassembly, and packaging
+code adapted from PgSniffer (https://github.com/c77cc/pgsniffer), used under
+the MIT License. MongoDB protocol and BSON analysis code is specific to this
+project.
